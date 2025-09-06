@@ -1,0 +1,68 @@
+{
+    "path": [],
+    "provider": "OpenAI",
+    "api_key": "your_api_key_here",
+    "base_url": "https://api.openai.com/v1",
+    "model": "gpt-4o-mini",
+    "model_img": "gpt-4o-mini",
+    "model_audio": "gpt-4o-mini",
+
+    "temperature": 0.3,
+
+    "simulation_analysis_temprature": 0.5,
+    "simulation_generate_code_temprature": 0.3,
+
+    "dumb_analysis_temprature" : 0.3,
+    "dumb_generate_code_temprature" : 0.3,
+
+    "adapter_analysis_temprature": 0.3,
+    "adapter_generate_code_temprature": 0.3,
+    
+    "doc_generate_temprature": 0.3,
+
+    "cache_dir": "",
+    "dumb_use_simulation": true,
+    "dumb_use_v2": true,
+    "simulation_use_v2": true,
+    "exec_use_subprocess": false,
+    "ask": true,
+    "ai_Logger": true,
+    "auto_suggest": false,
+    "force_regenerate": true,
+    "record_pkl": true,
+    "evaluate_mode": false,
+
+    "/*comment*/": {
+        "path":"Represents the path to add custom sys.path for code execution",
+        "provider":"AI service provider, supports OpenAI, Google, Mistral, Anthropic, Alibaba, Baidu, Ollama, etc.",
+        "api_key":"API key",
+        "base_url":"Base URL for the API (required by some providers)",
+        "model":"Text model name",
+        "model_img":"Image processing model name (not implemented, can input anything)",
+        "model_audio":"Audio processing model name (not implemented, can input anything)",
+        "temperature":"Temperature for AI-generated content",
+        "simulation_analysis_temprature":"Temperature for analysis phase when generating static artifacts",
+        "simulation_generate_code_temprature":"Temperature for code generation phase when generating static artifacts",
+
+        "dumb_analysis_temprature":"Temperature for analysis phase in non-intelligent module simulation",
+        "dumb_generate_code_temprature":"Temperature for code generation phase in non-intelligent module simulation",   
+
+        "adapter_analysis_temprature":"Temperature for adapter generation analysis phase",
+        "adapter_generate_code_temprature":"Temperature for adapter generation code phase",
+
+        "doc_generate_temprature":"Temperature for documentation generation",
+
+
+        "cache_dir":"Cache directory, uses default cache directory if not set",
+        "dumb_use_simulation":"Whether to simulate code execution as baseline",
+        "dumb_use_v2":"Whether to use v2 version of non-intelligent module simulation",
+        "simulation_use_v2":"Whether to use v2 version of static executable artifact generation",
+        "exec_use_subprocess":"Whether to use python -m subprocess when executing code",
+        "ask":"Whether to ask user for confirmation when encountering existing code",
+        "ai_Logger":"Whether to use AI logging",
+        "auto_suggest":"Whether to automatically generate suggestions after simulation execution",
+        "force_regenerate":"Whether to force AI to regenerate some content that could use cache",
+        "record_pkl":"Whether to record execution results as pkl files",
+        "evaluate_mode":"Evaluation mode"
+    }
+}

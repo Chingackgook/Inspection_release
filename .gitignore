@@ -1,0 +1,17 @@
+/AIChatRecords/
+/InterfaceData/
+/Records/
+/Env/
+/Suggestions/
+/Workflow/
+/Inspection/adapters/custom_adapters/
+/Inspection/simulation/
+
+__pycache__/
+*.py[cod]
+.vscode/
+.ipynb_checkpoints
+/checkpoints/
+/~/
+/.pytest_cache/
+/rc.py
