@@ -1,0 +1,235 @@
+from Inspection.core.executor import Executor
+from Inspection.utils.path_manager import RESOURCES_PATH
+from Inspection.adapters.custom_adapters.CodeFormer import *
+exe = Executor('CodeFormer', 'simulation')
+FILE_RECORD_PATH = exe.now_record_path
+sys.argv[0
+    ] = '/mnt/autor_name/haoTingDeWenJianJia/CodeFormer/inference_codeformer.py'
+import os
+import cv2
+import argparse
+import glob
+import torch
+from torchvision.transforms.functional import normalize
+from basicsr.utils import imwrite
+from basicsr.utils import img2tensor
+from basicsr.utils import tensor2img
+from basicsr.utils.download_util import load_file_from_url
+from basicsr.utils.misc import gpu_is_available
+from basicsr.utils.misc import get_device
+from facelib.utils.face_restoration_helper import FaceRestoreHelper
+from facelib.utils.misc import is_gray
+from basicsr.utils.registry import ARCH_REGISTRY
+from basicsr.archs.rrdbnet_arch import RRDBNet
+from basicsr.utils.realesrgan_utils import RealESRGANer
+import warnings
+from basicsr.utils.video_util import VideoReader
+from basicsr.utils.video_util import VideoWriter
+import os
+import cv2
+import glob
+import torch
+from torchvision.transforms.functional import normalize
+from basicsr.utils import imwrite, img2tensor, tensor2img
+from basicsr.utils.download_util import load_file_from_url
+from basicsr.utils.misc import gpu_is_available, get_device
+from facelib.utils.face_restoration_helper import FaceRestoreHelper
+from facelib.utils.misc import is_gray
+from basicsr.utils.registry import ARCH_REGISTRY
+pretrain_model_url = {'restoration':
+    'https://github.com/sczhou/CodeFormer/releases/download/v0.1.0/codeformer.pth'
+    }
+
+
+def set_realesrgan(bg_tile):
+    from basicsr.archs.rrdbnet_arch import RRDBNet
+    from basicsr.utils.realesrgan_utils import RealESRGANer
+    use_half = False
+    if torch.cuda.is_available():
+        no_half_gpu_list = ['1650', '1660']
+        if not True in [(gpu in torch.cuda.get_device_name(0)) for gpu in
+            no_half_gpu_list]:
+            use_half = True
+    model = RRDBNet(num_in_ch=3, num_out_ch=3, num_feat=64, num_block=23,
+        num_grow_ch=32, scale=2)
+    upsampler = RealESRGANer(scale=2, model_path=
+        'https://github.com/sczhou/CodeFormer/releases/download/v0.1.0/RealESRGAN_x2plus.pth'
+        , model=model, tile=bg_tile, tile_pad=40, pre_pad=0, half=use_half)
+    if not gpu_is_available():
+        import warnings
+        warnings.warn(
+            'Running on CPU now! Make sure your PyTorch version matches your CUDA.The unoptimized RealESRGAN is slow on CPU. If you want to disable it, please remove `--bg_upsampler` and `--face_upsample` in command.'
+            , category=RuntimeWarning)
+    return upsampler
+
+
+def run_face_restoration(input_path='./inputs/whole_imgs', output_path=None,
+    fidelity_weight=0.5, upscale=2, has_aligned=False, only_center_face=
+    False, draw_box=False, detection_model='retinaface_resnet50',
+    bg_upsampler='None', face_upsample=False, bg_tile=400, suffix=None,
+    save_video_fps=None):
+    device = get_device()
+    w = fidelity_weight
+    input_video = False
+    if input_path.endswith(('jpg', 'jpeg', 'png', 'JPG', 'JPEG', 'PNG')):
+        input_img_list = [input_path]
+        result_root = f'{FILE_RECORD_PATH}/test_results/test_img_{w}'
+    elif input_path.endswith(('mp4', 'mov', 'avi', 'MP4', 'MOV', 'AVI')):
+        from basicsr.utils.video_util import VideoReader, VideoWriter
+        input_img_list = []
+        vidreader = VideoReader(input_path)
+        image = vidreader.get_frame()
+        while image is not None:
+            input_img_list.append(image)
+            image = vidreader.get_frame()
+        audio = vidreader.get_audio()
+        fps = vidreader.get_fps() if save_video_fps is None else save_video_fps
+        video_name = os.path.basename(input_path)[:-4]
+        result_root = f'{FILE_RECORD_PATH}/test_results/{video_name}_{w}'
+        input_video = True
+        vidreader.close()
+    else:
+        if input_path.endswith('/'):
+            input_path = RESOURCES_PATH + 'videos/test_video.mp4'
+        input_img_list = sorted(glob.glob(os.path.join(input_path,
+            '*.[jpJP][pnPN]*[gG]')))
+        result_root = (
+            f'{FILE_RECORD_PATH}/test_results/{os.path.basename(input_path)}_{w}'
+            )
+    if output_path is not None:
+        result_root = output_path
+    test_img_num = len(input_img_list)
+    if test_img_num == 0:
+        raise FileNotFoundError(
+            """No input image/video is found...
+	Note that --input_path for video should end with .mp4|.mov|.avi"""
+            )
+    if bg_upsampler == 'realesrgan':
+        bg_upsampler = set_realesrgan(bg_tile)
+    else:
+        bg_upsampler = None
+    if face_upsample:
+        if bg_upsampler is not None:
+            face_upsampler = bg_upsampler
+        else:
+            face_upsampler = set_realesrgan(bg_tile)
+    else:
+        face_upsampler = None
+    net = ARCH_REGISTRY.get('CodeFormer')(dim_embd=512, codebook_size=1024,
+        n_head=8, n_layers=9, connect_list=['32', '64', '128', '256']).to(
+        device)
+    ckpt_path = load_file_from_url(url=pretrain_model_url['restoration'],
+        model_dir='weights/CodeFormer', progress=True, file_name=None)
+    checkpoint = torch.load(ckpt_path)['params_ema']
+    net.load_state_dict(checkpoint)
+    net.eval()
+    if not has_aligned:
+        print(f'Face detection model: {detection_model}')
+    if bg_upsampler is not None:
+        print(f'Background upsampling: True, Face upsampling: {face_upsample}')
+    else:
+        print(f'Background upsampling: False, Face upsampling: {face_upsample}'
+            )
+    face_helper = exe.create_interface_objects(interface_class_name=
+        'FaceRestoreHelper', upscale_factor=upscale, face_size=512,
+        crop_ratio=(1, 1), det_model=detection_model, save_ext='png',
+        use_parse=True, device=device)
+    for i, img_path in enumerate(input_img_list):
+        exe.run('clean_all')
+        if isinstance(img_path, str):
+            img_name = os.path.basename(img_path)
+            basename, ext = os.path.splitext(img_name)
+            print(f'[{i + 1}/{test_img_num}] Processing: {img_name}')
+            img = cv2.imread(img_path, cv2.IMREAD_COLOR)
+        else:
+            basename = str(i).zfill(6)
+            img_name = f'{video_name}_{basename}' if input_video else basename
+            print(f'[{i + 1}/{test_img_num}] Processing: {img_name}')
+            img = img_path
+        if has_aligned:
+            img = cv2.resize(img, (512, 512), interpolation=cv2.INTER_LINEAR)
+            face_helper.is_gray = is_gray(img, threshold=10)
+            if face_helper.is_gray:
+                print('Grayscale input: True')
+            face_helper.cropped_faces = [img]
+        else:
+            exe.run('read_image', img=img)
+            num_det_faces = exe.run('get_face_landmarks_5',
+                only_center_face=only_center_face, resize=640,
+                eye_dist_threshold=5)
+            print(f'\tdetect {num_det_faces} faces')
+            exe.run('align_warp_face')
+        for idx, cropped_face in enumerate(face_helper.cropped_faces):
+            cropped_face_t = img2tensor(cropped_face / 255.0, bgr2rgb=True,
+                float32=True)
+            normalize(cropped_face_t, (0.5, 0.5, 0.5), (0.5, 0.5, 0.5),
+                inplace=True)
+            cropped_face_t = cropped_face_t.unsqueeze(0).to(device)
+            try:
+                with torch.no_grad():
+                    output = net(cropped_face_t, w=w, adain=True)[0]
+                    restored_face = tensor2img(output, rgb2bgr=True,
+                        min_max=(-1, 1))
+                del output
+                torch.cuda.empty_cache()
+            except Exception as error:
+                print(f'\tFailed inference for CodeFormer: {error}')
+                restored_face = tensor2img(cropped_face_t, rgb2bgr=True,
+                    min_max=(-1, 1))
+            restored_face = restored_face.astype('uint8')
+            exe.run('add_restored_face', restored_face=restored_face,
+                input_face=cropped_face)
+        if not has_aligned:
+            if bg_upsampler is not None:
+                bg_img = bg_upsampler.enhance(img, outscale=upscale)[0]
+            else:
+                bg_img = None
+            exe.run('get_inverse_affine', save_inverse_affine_path=None)
+            if face_upsample and face_upsampler is not None:
+                restored_img = exe.run('paste_faces_to_input_image',
+                    upsample_img=bg_img, draw_box=draw_box, face_upsampler=
+                    face_upsampler)
+            else:
+                restored_img = exe.run('paste_faces_to_input_image',
+                    upsample_img=bg_img, draw_box=draw_box)
+        for idx, (cropped_face, restored_face) in enumerate(zip(face_helper
+            .cropped_faces, face_helper.restored_faces)):
+            if not has_aligned:
+                save_crop_path = os.path.join(result_root, 'cropped_faces',
+                    f'{basename}_{idx:02d}.png')
+                imwrite(cropped_face, save_crop_path)
+            if has_aligned:
+                save_face_name = f'{basename}.png'
+            else:
+                save_face_name = f'{basename}_{idx:02d}.png'
+            if suffix is not None:
+                save_face_name = f'{save_face_name[:-4]}_{suffix}.png'
+            save_restore_path = os.path.join(result_root, 'restored_faces',
+                save_face_name)
+            imwrite(restored_face, save_restore_path)
+        if not has_aligned and restored_img is not None:
+            if suffix is not None:
+                basename = f'{basename}_{suffix}'
+            save_restore_path = os.path.join(result_root, 'final_results',
+                f'{basename}.png')
+            imwrite(restored_img, save_restore_path)
+    if input_video:
+        print('Video Saving...')
+        video_frames = []
+        img_list = sorted(glob.glob(os.path.join(result_root,
+            'final_results', '*.[jp][pn]g')))
+        for img_path in img_list:
+            img = cv2.imread(img_path)
+            video_frames.append(img)
+        height, width = video_frames[0].shape[:2]
+        if suffix is not None:
+            video_name = f'{video_name}_{suffix}.png'
+        save_restore_path = os.path.join(result_root, f'{video_name}.mp4')
+        vidwriter = VideoWriter(save_restore_path, height, width, fps, audio)
+        for f in video_frames:
+            vidwriter.write_frame(f)
+        vidwriter.close()
+    print(f'\nAll results are saved in {result_root}')
+
+
+run_face_restoration()

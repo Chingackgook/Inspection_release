@@ -1,0 +1,20 @@
+{
+    "Project_Root": "/mnt/autor_name/haoTingDeWenJianJia/External-Attention-pytorch",
+    "API_Calls": [
+        {
+            "Name": "test_MobileViTv2Attention",
+            "Description": "main.py 中调用 MobileViTv2Attention 接口的核心目的是对该模块的基本功能进行测试，确保其能够正确实例化、完成前向传播计算，并且输出形状符合预期。",
+            "Code": "from model.attention.MobileViTv2Attention import *\nimport torch\nfrom torch import nn\nfrom torch.nn import functional as F\n\nif __name__ == '__main__':\n    input=torch.randn(50,49,512)\n    sa = MobileViTv2Attention(d_model=512)\n    output=sa(input)\n    print(output.shape)\n ",
+            "Path": "/mnt/autor_name/haoTingDeWenJianJia/External-Attention-pytorch/main.py"
+        }
+    ],
+    "API_Implementations": [
+        {
+            "Name": "class_MobileViTv2Attention",
+            "Description": "MobileViTv2Attention 接口实现了一种基于缩放点积注意力机制的变体，其核心思想是通过计算输入的上下文向量来对输入特征进行加权，从而突出输入序列中重要的部分。该接口可作为神经网络中的一个组件，用于处理序列数据或图像数据的特征表示。",
+            "Path": "/mnt/autor_name/haoTingDeWenJianJia/External-Attention-pytorch/model/attention/MobileViTv2Attention.py",
+            "Implementation": "import numpy as np\nimport torch\nfrom torch import nn\nfrom torch.nn import init\n\n\n\nclass MobileViTv2Attention(nn.Module):\n    '''\n    Scaled dot-product attention\n    '''\n\n    def __init__(self, d_model):\n        '''\n        :param d_model: Output dimensionality of the model\n        :param d_k: Dimensionality of queries and keys\n        :param d_v: Dimensionality of values\n        :param h: Number of heads\n        '''\n        super(MobileViTv2Attention, self).__init__()\n        self.fc_i = nn.Linear(d_model,1)\n        self.fc_k = nn.Linear(d_model, d_model)\n        self.fc_v = nn.Linear(d_model, d_model)\n        self.fc_o = nn.Linear(d_model, d_model)\n\n        self.d_model = d_model\n        self.init_weights()\n\n\n    def init_weights(self):\n        for m in self.modules():\n            if isinstance(m, nn.Conv2d):\n                init.kaiming_normal_(m.weight, mode='fan_out')\n                if m.bias is not None:\n                    init.constant_(m.bias, 0)\n            elif isinstance(m, nn.BatchNorm2d):\n                init.constant_(m.weight, 1)\n                init.constant_(m.bias, 0)\n            elif isinstance(m, nn.Linear):\n                init.normal_(m.weight, std=0.001)\n                if m.bias is not None:\n                    init.constant_(m.bias, 0)\n\n    def forward(self, input):\n        '''\n        Computes\n        :param queries: Queries (b_s, nq, d_model)\n        :return:\n        '''\n        i = self.fc_i(input) #(bs,nq,1)\n        weight_i = torch.softmax(i, dim=1) #bs,nq,1\n        context_score = weight_i * self.fc_k(input) #bs,nq,d_model\n        context_vector = torch.sum(context_score,dim=1,keepdim=True) #bs,1,d_model\n        v = self.fc_v(input) * context_vector #bs,nq,d_model\n        out = self.fc_o(v) #bs,nq,d_model\n\n        return out\n\n\nif __name__ == '__main__':\n    input=torch.randn(50,49,512)\n    sa = MobileViTv2Attention(d_model=512)\n    output=sa(input)\n    print(output.shape)\n\n    ",
+            "Examples": []
+        }
+    ]
+}

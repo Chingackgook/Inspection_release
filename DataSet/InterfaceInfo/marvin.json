@@ -1,0 +1,31 @@
+{
+    "Project_Root": "/mnt/autor_name/haoTingDeWenJianJia/marvin/src",
+    "API_Calls": [
+        {
+            "Name": "call_generate",
+            "Description": "call_generate",
+            "Code": "from typing import Annotated\n\nfrom pydantic import Field, TypeAdapter\n\nimport marvin\n\n# you can use Annotated to add extra detail to your types\nFruit = Annotated[str, Field(description=\"A fruit\")]\n\n\nif __name__ == \"__main__\":\n    fruits = marvin.generate(target=Fruit, n=3, instructions=\"high vitamin C content\")\n    assert len(fruits) == 3\n    print(\"results are a valid list of Fruit:\")\n    print(f\"{TypeAdapter(list[Fruit]).validate_python(fruits)}\")\n\n    print(\n        marvin.generate(\n            target=str,\n            n=len(fruits),\n            instructions=f\"bizarro sitcom character names based on these fruit: {fruits}\",\n        ),\n    )",
+            "Path": "/mnt/autor_name/haoTingDeWenJianJia/marvin/examples/hello_generate.py"
+        }
+    ],
+    "API_Implementations": [
+        {
+            "Name": "generate",
+            "Description": "generate",
+            "Path": "/mnt/autor_name/haoTingDeWenJianJia/marvin/src/marvin/fns/generate.py",
+            "Implementation": "import inspect\nfrom typing import Any, TypeVar, cast\n\nfrom pydantic import conlist\n\nimport marvin\nfrom marvin.agents.agent import Agent\nfrom marvin.handlers.handlers import AsyncHandler, Handler\nfrom marvin.thread import Thread\nfrom marvin.utilities.asyncio import run_sync\nfrom marvin.utilities.jinja import jinja_env\nfrom marvin.utilities.jsonschema import JSONSchema\nfrom marvin.utilities.types import TargetType\n\nT = TypeVar(\"T\")\n\n\n\ndef generate(\n    target: TargetType[T] | None = None,\n    n: int = 1,\n    instructions: str | None = None,\n    agent: Agent | None = None,\n    thread: Thread | str | None = None,\n    context: dict[str, Any] | None = None,\n    handlers: list[Handler | AsyncHandler] | None = None,\n    prompt: str | None = None,\n) -> list[T]:\n    \"\"\"Generates examples of a specific type or matching a description.\n\n    This function uses a language model to generate high-quality, random examples\n    that match the specified type or description. The examples are returned as a\n    list.\n\n    Args:\n        target: The type of entities to generate.\n        n: The number of examples to generate. Defaults to 1.\n        instructions: Optional instructions describing what to generate. Used to\n            provide specific guidance about what kinds of examples to create.\n        agent: Optional custom agent to use for generation. If not provided,\n            the default agent will be used.\n        thread: Optional thread for maintaining conversation context. Can be\n            either a Thread object or a string thread ID.\n        context: Optional dictionary of additional context to include in the task.\n        handlers: Optional list of handlers to use for the task.\n        prompt: Optional prompt to use for the task. If not provided, the default\n            prompt will be used.\n    Returns:\n        A list of n generated entities of type T.\n\n    \"\"\"\n    return run_sync(\n        generate_async(\n            target=target,\n            n=n,\n            instructions=instructions,\n            agent=agent,\n            thread=thread,\n            context=context,\n            handlers=handlers,\n            prompt=prompt,\n        ),\n    )",
+            "Examples": [
+                "\n"
+            ]
+        },
+        {
+            "Name": "run",
+            "Description": "run",
+            "Path": "/mnt/autor_name/haoTingDeWenJianJia/marvin/src/marvin/fns/run.py",
+            "Implementation": "import asyncio\nfrom collections.abc import Callable, Sequence\nfrom typing import Annotated, Any, AsyncGenerator, TypeVar\n\nfrom pydantic_ai.messages import UserContent\n\nimport marvin\nimport marvin.utilities.asyncio\nfrom marvin import Task, Thread\nfrom marvin.agents.actor import Actor\nfrom marvin.engine.events import Event\nfrom marvin.engine.orchestrator import Orchestrator\nfrom marvin.handlers.handlers import AsyncHandler, Handler\n\nT = TypeVar(\"T\")\n\n\n\ndef run(\n    instructions: str | Sequence[UserContent],\n    result_type: type[T] = str,\n    tools: list[Callable[..., Any]] = [],\n    thread: Thread | str | None = None,\n    agents: list[Actor] | None = None,\n    raise_on_failure: bool = True,\n    handlers: list[Handler | AsyncHandler] | None = None,\n    **kwargs: Any,\n) -> T:\n    return marvin.utilities.asyncio.run_sync(\n        run_async(\n            instructions=instructions,\n            result_type=result_type,\n            tools=tools,\n            thread=thread,\n            agents=agents,\n            raise_on_failure=raise_on_failure,\n            handlers=handlers,\n            **kwargs,\n        ),\n    )",
+            "Examples": [
+                "\n"
+            ]
+        }
+    ]
+}

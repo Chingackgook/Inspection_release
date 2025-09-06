@@ -1,0 +1,49 @@
+{
+  "Project_Root": "/mnt/autor_name/haoTingDeWenJianJia/bark",
+  "API_Calls": [
+    {
+      "Name": "generate_audio",
+      "Code": "\nimport argparse\nfrom typing import Dict, Optional, Union\nimport os\n\nfrom scipy.io.wavfile import write as write_wav\nfrom .api import generate_audio\nfrom .generation import SAMPLE_RATE\n\n\ndef cli():\n    \"\"\"Commandline interface.\"\"\"\n    parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)\n    parser.add_argument(\"--text\", type=str, help=\"text to be turned into audio\")\n    parser.add_argument(\n        \"--output_filename\",\n        type=str,\n        default=\"bark_generation.wav\",\n        help=\"output audio file name\",\n    )\n    parser.add_argument(\"--output_dir\", type=str, default=\".\", help=\"directory to save the outputs\")\n    parser.add_argument(\n        \"--history_prompt\",\n        type=str,\n        default=None,\n        help=\"history choice for audio cloning, be path to the .npz file.\",\n    )\n    parser.add_argument(\n        \"--text_temp\",\n        default=0.7,\n        type=float,\n        help=\"generation temperature (1.0 more diverse, 0.0 more conservative)\",\n    )\n    parser.add_argument(\n        \"--waveform_temp\",\n        default=0.7,\n        type=float,\n        help=\"generation temperature (1.0 more diverse, 0.0 more conservative)\",\n    )\n    parser.add_argument(\"--silent\", default=False, type=bool, help=\"disable progress bar\")\n    parser.add_argument(\n        \"--output_full\",\n        default=False,\n        type=bool,\n        help=\"return full generation to be used as a history prompt\",\n    )\n\n    args = vars(parser.parse_args())\n    input_text: str = args.get(\"text\")\n    output_filename: str = args.get(\"output_filename\")\n    output_dir: str = args.get(\"output_dir\")\n    history_prompt: str = args.get(\"history_prompt\")\n    text_temp: float = args.get(\"text_temp\")\n    waveform_temp: float = args.get(\"waveform_temp\")\n    silent: bool = args.get(\"silent\")\n    output_full: bool = args.get(\"output_full\")\n\n    try:\n        os.makedirs(output_dir, exist_ok=True)\n        generated_audio = generate_audio(\n            input_text,\n            history_prompt=history_prompt,\n            text_temp=text_temp,\n            waveform_temp=waveform_temp,\n            silent=silent,\n            output_full=output_full,\n        )\n        output_file_path = os.path.join(output_dir, output_filename)\n        write_wav(output_file_path, SAMPLE_RATE, generated_audio)\n        print(f\"Done! Output audio file is saved at: '{output_file_path}'\")\n    except Exception as e:\n        print(f\"Oops, an error occurred: {e}\")\n\n",
+      "Description": "Generate audio array from input text.",
+      "Path": "/mnt/autor_name/haoTingDeWenJianJia/bark/bark/cli.py"
+    }
+  ],
+  "API_Implementations": [
+    {
+      "Implementation": "\ndef generate_audio(\n    text: str,\n    history_prompt: Optional[Union[Dict, str]] = None,\n    text_temp: float = 0.7,\n    waveform_temp: float = 0.7,\n    silent: bool = False,\n    output_full: bool = False,\n):\n    \"\"\"Generate audio array from input text.\n\n    Args:\n        text: text to be turned into audio\n        history_prompt: history choice for audio cloning\n        text_temp: generation temperature (1.0 more diverse, 0.0 more conservative)\n        waveform_temp: generation temperature (1.0 more diverse, 0.0 more conservative)\n        silent: disable progress bar\n        output_full: return full generation to be used as a history prompt\n\n    Returns:\n        numpy audio array at sample frequency 24khz\n    \"\"\"\n    semantic_tokens = text_to_semantic(\n        text,\n        history_prompt=history_prompt,\n        temp=text_temp,\n        silent=silent,\n    )\n    out = semantic_to_waveform(\n        semantic_tokens,\n        history_prompt=history_prompt,\n        temp=waveform_temp,\n        silent=silent,\n        output_full=output_full,\n    )\n    if output_full:\n        full_generation, audio_arr = out\n        return full_generation, audio_arr\n    else:\n        audio_arr = out\n    return audio_arr\n",
+      "Description": "Generate audio array from input text.",
+      "Path": "/mnt/autor_name/haoTingDeWenJianJia/bark/bark/api.py",
+      "Name": "generate_audio",
+      "Examples": [
+        "\n    args = vars(parser.parse_args())\n    input_text: str = args.get(\"text\")\n    output_filename: str = args.get(\"output_filename\")\n    output_dir: str = args.get(\"output_dir\")\n    history_prompt: str = args.get(\"history_prompt\")\n    text_temp: float = args.get(\"text_temp\")\n    waveform_temp: float = args.get(\"waveform_temp\")\n    silent: bool = args.get(\"silent\")\n    output_full: bool = args.get(\"output_full\")\n\n    try:\n        os.makedirs(output_dir, exist_ok=True)\n        generated_audio = generate_audio(\n            input_text,\n            history_prompt=history_prompt,\n            text_temp=text_temp,\n            waveform_temp=waveform_temp,\n            silent=silent,\n            output_full=output_full,\n        )\n        output_file_path = os.path.join(output_dir, output_filename)\n        write_wav(output_file_path, SAMPLE_RATE, generated_audio)\n        print(f\"Done! Output audio file is saved at: '{output_file_path}'\")\n    except Exception as e:\n        print(f\"Oops, an error occurred: {e}\")\n"
+      ]
+    },
+    {
+      "Implementation": "\ndef text_to_semantic(\n    text: str,\n    history_prompt: Optional[Union[Dict, str]] = None,\n    temp: float = 0.7,\n    silent: bool = False,\n):\n    \"\"\"Generate semantic array from text.\n\n    Args:\n        text: text to be turned into audio\n        history_prompt: history choice for audio cloning\n        temp: generation temperature (1.0 more diverse, 0.0 more conservative)\n        silent: disable progress bar\n\n    Returns:\n        numpy semantic array to be fed into `semantic_to_waveform`\n    \"\"\"\n    x_semantic = generate_text_semantic(\n        text,\n        history_prompt=history_prompt,\n        temp=temp,\n        silent=silent,\n        use_kv_caching=True\n    )\n    return x_semantic\n",
+      "Description": "Generate semantic array from text.",
+      "Path": "/mnt/autor_name/haoTingDeWenJianJia/bark/bark/api.py",
+      "Name": "text_to_semantic",
+      "Examples": [
+        ""
+      ]
+    },
+    {
+      "Implementation": "\ndef semantic_to_waveform(\n    semantic_tokens: np.ndarray,\n    history_prompt: Optional[Union[Dict, str]] = None,\n    temp: float = 0.7,\n    silent: bool = False,\n    output_full: bool = False,\n):\n    \"\"\"Generate audio array from semantic input.\n\n    Args:\n        semantic_tokens: semantic token output from `text_to_semantic`\n        history_prompt: history choice for audio cloning\n        temp: generation temperature (1.0 more diverse, 0.0 more conservative)\n        silent: disable progress bar\n        output_full: return full generation to be used as a history prompt\n\n    Returns:\n        numpy audio array at sample frequency 24khz\n    \"\"\"\n    coarse_tokens = generate_coarse(\n        semantic_tokens,\n        history_prompt=history_prompt,\n        temp=temp,\n        silent=silent,\n        use_kv_caching=True\n    )\n    fine_tokens = generate_fine(\n        coarse_tokens,\n        history_prompt=history_prompt,\n        temp=0.5,\n    )\n    audio_arr = codec_decode(fine_tokens)\n    if output_full:\n        full_generation = {\n            \"semantic_prompt\": semantic_tokens,\n            \"coarse_prompt\": coarse_tokens,\n            \"fine_prompt\": fine_tokens,\n        }\n        return full_generation, audio_arr\n    return audio_arr\n",
+      "Description": "Generate audio array from semantic input.",
+      "Path": "/mnt/autor_name/haoTingDeWenJianjia/bark/bark/api.py",
+      "Name": "semantic_to_waveform",
+      "Examples": [
+        ""
+      ]
+    },
+    {
+      "Implementation": "\ndef save_as_prompt(filepath, full_generation):\n    assert(filepath.endswith(\".npz\"))\n    assert(isinstance(full_generation, dict))\n    assert(\"semantic_prompt\" in full_generation)\n    assert(\"coarse_prompt\" in full_generation)\n    assert(\"fine_prompt\" in full_generation)\n    np.savez(filepath, **full_generation)\n",
+      "Description": "Save the full generation as a prompt.",
+      "Path": "/mnt/autor_name/haoTingDeWenJianjia/bark/bark/api.py",
+      "Name": "save_as_prompt",
+      "Examples": [
+        ""
+      ]
+    }
+  ]
+}

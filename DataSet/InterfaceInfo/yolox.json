@@ -1,0 +1,22 @@
+{
+    "Project_Root": "/mnt/autor_name/haoTingDeWenJianJia/YOLOX",
+    "API_Calls": [
+        {
+            "Name": "call_vis",
+            "Description": "call_vis",
+            "Code": "#!/usr/bin/env python3\n# Copyright (c) Megvii, Inc. and its affiliates.\n\nimport argparse\nimport os\n\nimport cv2\nimport numpy as np\n\nimport onnxruntime\n\nfrom yolox.data.data_augment import preproc as preprocess\nfrom yolox.data.datasets import COCO_CLASSES\nfrom yolox.utils import mkdir, multiclass_nms, demo_postprocess, vis\n\n\ndef make_parser():\n    parser = argparse.ArgumentParser(\"onnxruntime inference sample\")\n    parser.add_argument(\n        \"-m\",\n        \"--model\",\n        type=str,\n        default=\"yolox.onnx\",\n        help=\"Input your onnx model.\",\n    )\n    parser.add_argument(\n        \"-i\",\n        \"--image_path\",\n        type=str,\n        default='test_image.png',\n        help=\"Path to your input image.\",\n    )\n    parser.add_argument(\n        \"-o\",\n        \"--output_dir\",\n        type=str,\n        default='demo_output',\n        help=\"Path to your output directory.\",\n    )\n    parser.add_argument(\n        \"-s\",\n        \"--score_thr\",\n        type=float,\n        default=0.3,\n        help=\"Score threshould to filter the result.\",\n    )\n    parser.add_argument(\n        \"--input_shape\",\n        type=str,\n        default=\"640,640\",\n        help=\"Specify an input shape for inference.\",\n    )\n    return parser\n\n\nif __name__ == '__main__':\n    args = make_parser().parse_args()\n\n    input_shape = tuple(map(int, args.input_shape.split(',')))\n    origin_img = cv2.imread(args.image_path)\n    img, ratio = preprocess(origin_img, input_shape)\n\n    session = onnxruntime.InferenceSession(args.model)\n\n    ort_inputs = {session.get_inputs()[0].name: img[None, :, :, :]}\n    output = session.run(None, ort_inputs)\n    predictions = demo_postprocess(output[0], input_shape)[0]\n\n    boxes = predictions[:, :4]\n    scores = predictions[:, 4:5] * predictions[:, 5:]\n\n    boxes_xyxy = np.ones_like(boxes)\n    boxes_xyxy[:, 0] = boxes[:, 0] - boxes[:, 2]/2.\n    boxes_xyxy[:, 1] = boxes[:, 1] - boxes[:, 3]/2.\n    boxes_xyxy[:, 2] = boxes[:, 0] + boxes[:, 2]/2.\n    boxes_xyxy[:, 3] = boxes[:, 1] + boxes[:, 3]/2.\n    boxes_xyxy /= ratio\n    dets = multiclass_nms(boxes_xyxy, scores, nms_thr=0.45, score_thr=0.1)\n    if dets is not None:\n        final_boxes, final_scores, final_cls_inds = dets[:, :4], dets[:, 4], dets[:, 5]\n        origin_img = vis(origin_img, final_boxes, final_scores, final_cls_inds,\n                         conf=args.score_thr, class_names=COCO_CLASSES)\n\n    mkdir(args.output_dir)\n    output_path = os.path.join(args.output_dir, os.path.basename(args.image_path))\n    cv2.imwrite(output_path, origin_img)\n",
+            "Path": "/mnt/autor_name/haoTingDeWenJianJia/YOLOX/demo/ONNXRuntime/onnx_inference.py"
+        }
+    ],
+    "API_Implementations": [
+        {
+            "Name": "vis",
+            "Description": "vis",
+            "Path": "/mnt/autor_name/haoTingDeWenJianJia/YOLOX/yolox/utils/visualize.py",
+            "Implementation": "#!/usr/bin/env python3\n# -*- coding:utf-8 -*-\n# Copyright (c) Megvii Inc. All rights reserved.\n\nimport cv2\nimport numpy as np\n\n__all__ = [\"vis\"]\n\n\ndef vis(img, boxes, scores, cls_ids, conf=0.5, class_names=None):\n\n    for i in range(len(boxes)):\n        box = boxes[i]\n        cls_id = int(cls_ids[i])\n        score = scores[i]\n        if score < conf:\n            continue\n        x0 = int(box[0])\n        y0 = int(box[1])\n        x1 = int(box[2])\n        y1 = int(box[3])\n\n        color = (_COLORS[cls_id] * 255).astype(np.uint8).tolist()\n        text = '{}:{:.1f}%'.format(class_names[cls_id], score * 100)\n        txt_color = (0, 0, 0) if np.mean(_COLORS[cls_id]) > 0.5 else (255, 255, 255)\n        font = cv2.FONT_HERSHEY_SIMPLEX\n\n        txt_size = cv2.getTextSize(text, font, 0.4, 1)[0]\n        cv2.rectangle(img, (x0, y0), (x1, y1), color, 2)\n\n        txt_bk_color = (_COLORS[cls_id] * 255 * 0.7).astype(np.uint8).tolist()\n        cv2.rectangle(\n            img,\n            (x0, y0 + 1),\n            (x0 + txt_size[0] + 1, y0 + int(1.5*txt_size[1])),\n            txt_bk_color,\n            -1\n        )\n        cv2.putText(img, text, (x0, y0 + txt_size[1]), font, 0.4, txt_color, thickness=1)\n\n    return img",
+            "Examples": [
+                "\n"
+            ]
+        }
+    ]
+}
