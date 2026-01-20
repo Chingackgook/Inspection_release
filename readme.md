@@ -1,6 +1,6 @@
-# LLM-CRNIMS: An Executable Context Reconstruction and Simulation Framework for AI Software
+# LLM-CRNIMS: An Executable Context Reconstruction and Simulation Framework for Intelligent Software
 
-This repository contains the implementation of **LLM-CRNIMS**, a framework for executable context reconstruction and simulation in AI software.
+This repository contains the implementation of **LLM-CRNIMS**, a framework for executable context reconstruction and simulation in Intelligent software.
 
 ## Preparation
 
