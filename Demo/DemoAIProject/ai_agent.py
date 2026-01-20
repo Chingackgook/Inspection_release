@@ -1,9 +1,10 @@
 """
 AI Agent Class - Intelligent agent for calling GPT API
 """
-import requests
 from typing import Optional, Dict, Any
 import os
+from openai import OpenAI
+import openai
 
 class AIAgent:
     """Intelligent AI agent class for interacting with GPT API"""
@@ -32,10 +33,7 @@ class AIAgent:
         self.api_key = api_key
         self.base_url = base_url
         self.model = model
-        self.headers = {
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json"
-        }
+        self.client = OpenAI(api_key=self.api_key, base_url=self.base_url)
         
     
     def chat(self, message: str, system_prompt: Optional[str] = None, temperature: float = 0.7) -> Dict[str, Any]:
@@ -57,42 +55,38 @@ class AIAgent:
                 messages.append({"role": "system", "content": system_prompt})
             messages.append({"role": "user", "content": message})
             
-            # Build request data
-            payload = {
-                "model": self.model,
-                "messages": messages,
-                "temperature": temperature,
-                "max_tokens": 1000
+            # Use OpenAI client to create chat completion
+            result = self.client.chat.completions.create(
+                model=self.model,
+                messages=messages,
+                temperature=temperature,
+                max_tokens=1000
+            )
+            
+            ai_reply = result.choices[0].message.content
+            tokens_used = {
+                "prompt_tokens": getattr(result.usage, "prompt_tokens", None),
+                "completion_tokens": getattr(result.usage, "completion_tokens", None),
+                "total_tokens": getattr(result.usage, "total_tokens", None),
             }
             
-            # Send request
-            url = f"{self.base_url}/chat/completions"
-            response = requests.post(url, headers=self.headers, json=payload, timeout=30)
-            
-            if response.status_code == 200:
-                result = response.json()
-                ai_reply = result['choices'][0]['message']['content']
+            return {
+                "success": True,
+                "reply": ai_reply,
+                "tokens_used": tokens_used,
+                "model": self.model
+            }
                 
-                return {
-                    "success": True,
-                    "reply": ai_reply,
-                    "tokens_used": result.get('usage', {}),
-                    "model": self.model
-                }
-            else:
-                error_msg = f"API request failed: {response.status_code} - {response.text}"
-                return {
-                    "success": False,
-                    "error": error_msg,
-                    "reply": None
-                }
-                
-        except requests.exceptions.Timeout:
+        except openai.APITimeoutError:
             error_msg = "Request timeout"
             return {"success": False, "error": error_msg, "reply": None}
         
-        except requests.exceptions.RequestException as e:
+        except openai.APIConnectionError as e:
             error_msg = f"Network request error: {str(e)}"
+            return {"success": False, "error": error_msg, "reply": None}
+        
+        except openai.OpenAIError as e:
+            error_msg = f"API request error: {str(e)}"
             return {"success": False, "error": error_msg, "reply": None}
         
         except Exception as e:

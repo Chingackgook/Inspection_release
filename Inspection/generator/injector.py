@@ -1,45 +1,51 @@
-from Inspection.utils.path_manager import SIMULATION_PATH , BASE_DIR
+from Inspection.utils.path_manager import SIMULATOR_PATH, BASE_DIR
 from Inspection.utils.config import CONFIG
 
 import os
 import ast
 import sys
+import re
+
 
 class Injector:
     """
     将dumbsimulator生成的模拟参数函数，注入到simulation的代码中，生成注入后文件存入dumbsimulator目录下
     """
+
     def __init__(self, name):
         """
         name:项目名
         """
         self.pj_name = name
-        self.simulation_use_v2 = CONFIG.get('simulation_use_v2', True)
 
-    def inject(self, call_idx , api_name , module_path):
-        self.api_name = api_name
-        simulate_code = ""
-        temp_path = SIMULATION_PATH + '/simulate_interface/' + f'{self.pj_name}/'
-        # 取出该文件夹内的以 idx 开头的python文件
-        if self.simulation_use_v2:
-            files = [f for f in os.listdir(temp_path) if f.startswith(str(call_idx)) and f.endswith('v2.py')]
-            if len(files) == 0:
-                print(f"[INS_WARN] Simulation execution file not found, trying to use v1 version")
-                files = [f for f in os.listdir(temp_path) if f.startswith(str(call_idx)) and f.endswith('.py')]
-        else:
-            files = [f for f in os.listdir(temp_path) if f.startswith(str(call_idx)) and f.endswith('.py')]
-        if len(files) == 0:
-            print(f"[INS_ERR] Simulation execution file does not exist")
-            return
-        simulate_code = open(temp_path + files[0], 'r').read()
-        injected_code = self.use_ast_inject_exe(simulate_code, api_name , module_path)
+    def get_call_code(self, call_idx, api_name):
+        dir_name = SIMULATOR_PATH + f"{self.pj_name}/"
+        pyfiles = os.listdir(dir_name)
+        pyfiles = [f for f in pyfiles if f.endswith(".py")]
+        for file in pyfiles:
+            match = re.match(r"call(\d+)_(.+)_simulator\.py", file)
+            if match:
+                idx = int(match.group(1))
+                apiname_in_file = match.group(2)
+                if idx == call_idx and apiname_in_file == api_name:
+                    with open(dir_name + file, "r") as f:
+                        code = f.read()
+                    return code
+        return None
+
+    def inject(self, call_idx, api_name, module_path):
+        simulate_code = self.get_call_code(call_idx, api_name)
+        if simulate_code is None:
+            print(
+                f"[INS_ERR] Could not find simulator code for call {call_idx} of {api_name}"
+            )
+            return None
+        injected_code = self.use_ast_inject_exe(simulate_code, api_name, module_path)
         return injected_code
 
+    def use_ast_inject_exe(self, simulate_code, api_name, module_path):
 
-
-    def use_ast_inject_exe(self, simulate_code, api_name , module_path):
-
-        import_path =  self._module_path_to_import_statement(module_path)
+        import_path = self._module_path_to_import_statement(module_path)
         tree = ast.parse(simulate_code)
         transformer = ExeRunInjector(api_name=api_name, import_path=import_path)
         new_tree = transformer.visit(tree)
@@ -49,6 +55,7 @@ class Injector:
             injected_code = ast.unparse(new_tree)
         else:
             import astor
+
             injected_code = astor.to_source(new_tree)
 
         return injected_code
@@ -58,23 +65,25 @@ class Injector:
             module_path = os.path.abspath(module_path)
             base_dir = os.path.abspath(BASE_DIR)
             if not module_path.startswith(base_dir):
-                print(f"[INS_ERR] Module path {module_path} is not under project root {base_dir}")
+                print(
+                    f"[INS_ERR] Module path {module_path} is not under project root {base_dir}"
+                )
                 return None
             relative_path = os.path.relpath(module_path, base_dir)
-            if relative_path.endswith('.py'):
+            if relative_path.endswith(".py"):
                 relative_path = relative_path[:-3]
-            elif relative_path.endswith('.pyx'):
+            elif relative_path.endswith(".pyx"):
                 relative_path = relative_path[:-4]
-            import_path = relative_path.replace(os.sep, '.')
-            import_path = import_path.lstrip('.')
-            if not import_path or '..' in import_path:
+            import_path = relative_path.replace(os.sep, ".")
+            import_path = import_path.lstrip(".")
+            if not import_path or ".." in import_path:
                 print(f"[INS_ERR] Generated import path is invalid: {import_path}")
                 return None
             return import_path
         except Exception as e:
             print(f"[INS_ERR] Error occurred while converting module path: {e}")
             return None
-        
+
 
 class ExeRunInjector(ast.NodeTransformer):
     def __init__(self, api_name, import_path):
@@ -99,9 +108,9 @@ class ExeRunInjector(ast.NodeTransformer):
             module=self.import_path,
             names=[
                 ast.alias(name="dumb_simulator", asname=None),
-                ast.alias(name="set_exe", asname=None)
+                ast.alias(name="set_exe", asname=None),
             ],
-            level=0
+            level=0,
         )
         # exe.set_record_function([""])
         call_unset_record_node = ast.Expr(
@@ -109,10 +118,10 @@ class ExeRunInjector(ast.NodeTransformer):
                 func=ast.Attribute(
                     value=ast.Name(id="exe", ctx=ast.Load()),
                     attr="set_record_function",
-                    ctx=ast.Load()
+                    ctx=ast.Load(),
                 ),
-                args=[ast.List(elts=[ast.Constant(value='')], ctx=ast.Load())],
-                keywords=[]
+                args=[ast.List(elts=[ast.Constant(value="")], ctx=ast.Load())],
+                keywords=[],
             )
         )
 
@@ -120,34 +129,40 @@ class ExeRunInjector(ast.NodeTransformer):
         assign_dumb_node = ast.Assign(
             targets=[ast.Name(id=self.kwarg_id, ctx=ast.Store())],
             value=ast.Call(
-                func=ast.Name(id="dumb_simulator", ctx=ast.Load()),
-                args=[], keywords=[]
-            )
+                func=ast.Name(id="dumb_simulator", ctx=ast.Load()), args=[], keywords=[]
+            ),
         )
-        
+
         # set_exe(exe)
         call_exeinit_node = ast.Expr(
             value=ast.Call(
                 func=ast.Name(id="set_exe", ctx=ast.Load()),
                 args=[ast.Name(id="exe", ctx=ast.Load())],
-                keywords=[]
+                keywords=[],
             )
         )
-        
+
         # exe.set_record_function(["api_name"])
         call_exe_record_node = ast.Expr(
             value=ast.Call(
                 func=ast.Attribute(
                     value=ast.Name(id="exe", ctx=ast.Load()),
                     attr="set_record_function",
-                    ctx=ast.Load()
+                    ctx=ast.Load(),
                 ),
-                args=[ast.List(elts=[ast.Constant(value=self.api_name)], ctx=ast.Load())],
-                keywords=[]
+                args=[
+                    ast.List(elts=[ast.Constant(value=self.api_name)], ctx=ast.Load())
+                ],
+                keywords=[],
             )
         )
-        return [import_node, call_unset_record_node, call_exeinit_node, assign_dumb_node , call_exe_record_node]
-
+        return [
+            import_node,
+            call_unset_record_node,
+            call_exeinit_node,
+            assign_dumb_node,
+            call_exe_record_node,
+        ]
 
     def visit_Module(self, node):
         self.generic_visit(node)
@@ -162,17 +177,21 @@ class ExeRunInjector(ast.NodeTransformer):
                         break
         node.body = node.body[:insert_index] + insert_nodes + node.body[insert_index:]
         return node
-    
+
     def visit_Call(self, node):
         self.generic_visit(node)
         if self.is_exe_run_call(node):
             return ast.Call(
                 func=node.func,
                 args=[node.args[0]],
-                keywords=[ast.keyword(arg=None, value=ast.Name(id=self.kwarg_id, ctx=ast.Load()))]
+                keywords=[
+                    ast.keyword(
+                        arg=None, value=ast.Name(id=self.kwarg_id, ctx=ast.Load())
+                    )
+                ],
             )
         return node
-    
+
     def visit_Assign(self, node):
         # 检查是否是 exe 的赋值语句
         self.generic_visit(node)
@@ -186,4 +205,3 @@ class ExeRunInjector(ast.NodeTransformer):
                         node.value.args[1] = ast.Constant(s="dumb")
                 break
         return node
-

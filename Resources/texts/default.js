@@ -1,0 +1,1 @@
+console.log('This is a default JavaScript file.');

@@ -1,31 +1,32 @@
-# 工作流文件规则
-# 步骤名 + 参数 ，用英文逗号分隔 ，开头为需要模拟执行的项目名，新起一行代表新步骤
-# 每个步骤使用新行表示
-# 第一个步骤代表工作流名称
-# 示例：
+# Workflow file rules
+# Step name + parameters, separated by English commas, start with the project name to be simulated, new line represents new step
+# Each step uses a new line
+# The first step represents the workflow name
+# Example:
 """
 CLIP
 generate_doc
 generate_adapter
-generate_test
-generate_simulation, 1(引用的call,0开始)
-generate_dumb_simulator, some_api, 1(引用的call,0开始)
+generate_simulation, some_api, 1(reference to call, starting from 0)
+generate_dumb_simulator, some_api, 1(reference to call, starting from 0)
 test
-simulation, 1(将要模拟执行的id,0开始)
-dumb, some_api_name , 1(引用的call,0开始)
+simulation, some_api, 1(reference to call, starting from 0)
+dumb, some_api , 1(reference to call, starting from 0)
 """
-# 以上步骤名简写分别为g_doc, g_adp, g_tes, g_sim, g_dum, t, s, d
-# 现支持括号语法以及嵌套，步骤用英文分号分隔
-# 例如 3(generate_dumb_simulator, some_api, 1 ; 2(dumb, some_api_name , 1))
+# The above step name abbreviations are g_doc, g_adp, g_tes, g_sim, g_dum, t, s, d respectively
+# Now supports bracket syntax and nesting, steps are separated by English semicolons
+# For example: 3(generate_dumb_simulator, some_api, 1 ; 2(dumb, some_api_name , 1))
 
-from Inspection.core.workflow import Workflow
+from Inspection.core.workflow import Workflow, StepType
 from Inspection.utils.config import CONFIG
 import os
-sys_path = CONFIG.get('path', [])
 
-def decode_line(code : str) -> list:
+sys_path = CONFIG.get("path", [])
+
+
+def decode_line(code: str) -> list:
     units = []
-    # 对于左括号左边，如果不是数字，是分号或是字符串开头，则在此之前添加一个1
+    # For the left side of the left bracket, if it's not a number, is a semicolon or string start, add a 1 before it
     k = 0
     while k < len(code):
         if code[k] == "(":
@@ -33,7 +34,7 @@ def decode_line(code : str) -> list:
                 code = "1" + code
                 k += 1
                 continue
-            elif code[k-1] == ";":
+            elif code[k - 1] == ";":
                 code = code[:k] + "1" + code[k:]
                 k += 1
                 continue
@@ -54,7 +55,7 @@ def decode_line(code : str) -> list:
                 elif code[j] == ")":
                     barket -= 1
                 j += 1
-            new_code = code[i+1:j-1]
+            new_code = code[i + 1 : j - 1]
             new_units = decode_line(new_code)
             for k in range(mult):
                 units.extend(new_units)
@@ -73,7 +74,6 @@ def decode_line(code : str) -> list:
     return units
 
 
-
 class WorkflowCompiler:
     def __init__(self, code_or_path, base_ai):
         self.code_or_path = code_or_path
@@ -82,7 +82,7 @@ class WorkflowCompiler:
         self.workflow = None
         self.__preprocess()
 
-    def __compile_line(self, line:str) -> str:
+    def __compile_line(self, line: str) -> str:
         line = line.replace(" ", "")
         line = line.replace("\n", "")
         line = line.split("#")[0]
@@ -95,7 +95,7 @@ class WorkflowCompiler:
 
     def __preprocess(self):
         if os.path.isfile(self.code_or_path):
-            with open(self.code_or_path, 'r') as file:
+            with open(self.code_or_path, "r") as file:
                 lines = file.readlines()
             for line in lines:
                 self.__compile_line(line)
@@ -108,8 +108,8 @@ class WorkflowCompiler:
 
     def compile(self):
         """
-        解析每行文本，并根据步骤名称添加到工作流。
-        假设格式为: 步骤名称, 参数1=值1, 参数2=值2, ...
+        Parse each line of text and add to workflow based on step name.
+        Assumes format: step_name, parameter1=value1, parameter2=value2, ...
         """
         if self.lines is None or len(self.lines) == 0:
             print(f"[INS_ERR] File is empty or not read: {self.code_or_path}")
@@ -117,43 +117,50 @@ class WorkflowCompiler:
         first_line = self.lines[0].replace(" ", "")
         if first_line[-1] == ";":
             first_line = first_line[:-1]
-        self.workflow = Workflow(first_line ,sys_path , self.BaseAI)
-        self.lines = self.lines[1:] # 去掉第一行
+        self.workflow = Workflow(first_line, sys_path, self.BaseAI)
+        self.lines = self.lines[1:]  # Remove the first line
         for line in self.lines:
             parts = line.split(",")
             step_name = parts[0].strip()
             if step_name == "generate_doc" or step_name == "g_doc":
-                self.workflow.add_step("generate_doc")
+                self.workflow.add_step(StepType.GEN_DOC)
             elif step_name == "generate_adapter" or step_name == "g_adp":
-                self.workflow.add_step("generate_adapter")
-            elif step_name == "generate_test" or step_name == "g_tes":
-                self.workflow.add_step("generate_test")
+                self.workflow.add_step(StepType.GEN_ADAPTER)
             elif step_name == "generate_simulation" or step_name == "g_sim":
-                idx = int(parts[1].strip())
-                self.workflow.add_step("generate_simulation", simulate_idx=idx)
+                api_name = parts[1].strip()
+                idx = int(parts[2].strip())
+                self.workflow.add_step(
+                    StepType.GEN_SIMULATION, simulate_idx=idx, api_name=api_name
+                )
             elif step_name == "generate_dumb_simulator" or step_name == "g_dum":
                 api_name = parts[1].strip()
                 idx = int(parts[2].strip())
-                self.workflow.add_step("generate_dumb_simulator", api_name=api_name, simulate_idx=idx)
-            elif step_name == "test" or step_name == "t":
-                self.workflow.add_step("test")
+                self.workflow.add_step(
+                    StepType.GEN_DUMB_SIMULATOR, api_name=api_name, simulate_idx=idx
+                )
             elif step_name == "simulation" or step_name == "s":
-                idx = int(parts[1].strip())
-                self.workflow.add_step("simulation", simulate_idx=idx)
+                api_name = parts[1].strip()
+                idx = int(parts[2].strip())
+                self.workflow.add_step(
+                    StepType.EXEC_SIMULATION, simulate_idx=idx, api_name=api_name
+                )
             elif step_name == "dumb" or step_name == "d":
                 idx = int(parts[2].strip())
                 api_name = parts[1].strip()
-                self.workflow.add_step("dumb", simulate_idx=idx, api_name=api_name)
-            else :
+                self.workflow.add_step(
+                    StepType.EXEC_DUMB, simulate_idx=idx, api_name=api_name
+                )
+            else:
                 print(f"[INS_WARN] Unknown step: {step_name}")
                 continue
         return self.workflow
 
-# 用法示例
+
+# Usage example
 # from Inspection.ai.base_ai import BaseAI
 # from Inspection import WORKFLOW_PATH
 # if __name__ == "__main__":
-#     # 假设你有一个工作流文件 'workflow.txt'
+#     # Assume you have a workflow file 'workflow.txt'
 #     file_path = WORKFLOW_PATH + 'test.txt'
 #     base_ai = BaseAI()
 #     compiler = WorkflowCompiler(file_path, base_ai)

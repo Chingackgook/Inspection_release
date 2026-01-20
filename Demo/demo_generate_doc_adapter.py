@@ -14,7 +14,6 @@ dg.generate_doc()
 # 2: Call the adapter generation tool class to generate adapter code
 print("=== Generating Adapter Code ===")
 ag = AdapterGenerator('DemoAIProject')
-ag.set_base_ai(ai.copy())
 ag.generate_adapter()
 
 # The generated interface documentation will be saved in InterfaceData/InterfaceDocs/DemoAIProject.md

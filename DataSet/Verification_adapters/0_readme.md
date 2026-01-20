@@ -1,1 +1,0 @@
-Adapter modules used for RQ1 and RQ2

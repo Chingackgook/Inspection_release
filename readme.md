@@ -6,7 +6,7 @@ This repository contains the implementation of **LLM-CRNIMS**, a framework for e
 
 ### System Requirements
 - Linux or macOS (Windows will provide support in the future)
-- Python 3
+- Python 3.8 or higher
 
 ### Installation
 
@@ -40,7 +40,7 @@ To reproduce the steps described in the "Approach" section of the paper, execute
 ```bash
 python -m Demo.demo_set_database
 python -m Demo.demo_generate_doc_adapter
-python -m Demo.demo_generate_static_executable
-python -m Demo.demo_generate_NIM_simulation
+python -m Demo.demo_generate_SPE
+python -m Demo.demo_generate_NIMASM
 python -m Demo.demo_execute_and_suggest
 ```

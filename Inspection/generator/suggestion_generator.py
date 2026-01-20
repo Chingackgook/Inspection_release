@@ -1,29 +1,9 @@
-from Inspection.utils.interface_reader import InterfaceInfoReader , InterfaceDocReader
-from Inspection import SUGGESTION_PATH  , RECORD_PATH
+from Inspection.utils.readers import InterfaceInfoReader, InterfaceDocReader
+from Inspection import SUGGESTION_PATH, RECORD_PATH
 from Inspection.utils.result_reader import RecordJsonReader
-import os , time
+import os, time
 from Inspection.ai.base_ai import BaseAI
-
-def stringify_data(data, max_list_length=100):
-    """
-    递归地将数据中的所有值转换为字符串（长度最多300字符），
-    支持字典和列表结构嵌套处理，限制列表最大长度。
-    """
-    if isinstance(data, dict):
-        return {k: stringify_data(v, max_list_length) for k, v in data.items()}
-    
-    elif isinstance(data, list):
-        # 限制列表最大长度，并在末尾添加提示
-        result = [stringify_data(item, max_list_length) for item in data[:max_list_length]]
-        if len(data) > max_list_length:
-            result.append(f"... remain {len(data) - max_list_length} items")
-        return result
-    
-    else:
-        the_str = str(data)
-        if len(the_str) > 300:
-            return the_str[:300] + ' ... ' + f"remain {len(the_str) - 300} ch"
-        return the_str
+from Inspection.utils.tools import stringify_data
 
 
 class SuggestionGenerator:
@@ -35,11 +15,10 @@ class SuggestionGenerator:
         self.name = name
         self.doc = InterfaceDocReader(self.name).get_doc()
 
-        
     def set_base_ai(self, base_ai):
-        self.BaseAI:BaseAI = base_ai
+        self.ai: BaseAI = base_ai
 
-    def get_simulate_result(self , simulate_type :str , final_max_length=5000):
+    def get_simulate_result(self, simulate_type: str, final_max_length=5000):
         dumb_path = RECORD_PATH + f"/{simulate_type}/"
         # 找到所有以self.name开头的文件
         files = os.listdir(dumb_path)
@@ -48,15 +27,17 @@ class SuggestionGenerator:
             print(f"[INS_WARN] No simulation execution results exist for {self.name}")
             return None
         files.sort()
-        pjresult_dir = os.path.join(dumb_path, files[-1]) #最新的文件
+        pjresult_dir = os.path.join(dumb_path, files[-1])  # 最新的文件
         pjresults = os.listdir(pjresult_dir)
         pjresults = [f for f in pjresults if f.endswith(self.api_name)]
         if len(pjresults) == 0:
-            print(f"[INS_WARN] No simulation execution results exist for {self.api_name}")
+            print(
+                f"[INS_WARN] No simulation execution results exist for {self.api_name}"
+            )
             return None
         final_result = ""
         for i in range(len(pjresults)):
-            pjresult_path = os.path.join(pjresult_dir, pjresults[i], 'result_data.json')
+            pjresult_path = os.path.join(pjresult_dir, pjresults[i], "result_data.json")
             simulate_result_reader = RecordJsonReader(pjresult_path)
             args = simulate_result_reader.get_args()
             args_str = stringify_data(args)
@@ -75,12 +56,15 @@ Execution Success:
             """
             if not issuccess:
                 final_result += f"Failure Reason:\n{fail_reason}"
-            if i>= 5:
+            if i >= 5:
                 break
-        return final_result[:final_max_length] # 限制长度，避免过长的文本影响生成建议的质量
-    
+        return final_result[
+            :final_max_length
+        ]  # 限制长度，避免过长的文本影响生成建议的质量
 
-    def generate_suggestions(self, api_name: str, idx: int = 0, simulate_type : str =""):
+    def generate_suggestions(
+        self, api_name: str, idx: int = 0, simulate_type: str = ""
+    ):
         """
         idx为接口调用的索引
         """
@@ -88,9 +72,11 @@ Execution Success:
         self.api_name = api_name
         simulate_result = self.get_simulate_result(simulate_type=simulate_type)
         if simulate_result is None:
-            print(f"[INS_WARN] Simulation execution results do not exist, unable to generate suggestions")
+            print(
+                f"[INS_WARN] Simulation execution results do not exist, unable to generate suggestions"
+            )
             return
-        
+
         print(f"[INS_INFO] Generating inspection suggestions for interface {api_name}")
         promote = f"""
 {self.doc}
@@ -99,14 +85,14 @@ The above is the documentation information for the API
 The above is the code for the API {api_name} call, please understand this code first
 Here I need to inspect this API, I will send you the simulation results of this API
 """
-        _ = self.BaseAI.generate_text(promote, max_tokens=4096)
+        _ = self.ai.generate_text(promote, max_tokens=4096)
         promote = f"""
 {simulate_result}
 The above is the simulation result for API {api_name}, please provide modifications or inspection suggestions for my source code based on these results
 """
-        suggestion = self.BaseAI.generate_text(promote, max_tokens=12000)
+        suggestion = self.ai.generate_text(promote, max_tokens=12000)
         now = time.strftime("%Y-%m-%d_%H:%M:%S", time.localtime())
-        file_pre_info =f"""
+        file_pre_info = f"""
 # Generation Time: {now}
 # Project Name: {self.name}
 # API Name: {api_name}
@@ -116,13 +102,14 @@ The above is the simulation result for API {api_name}, please provide modificati
 {simulate_result}\n\n\n
 # Review Suggestions:
 """
-        suggestion_gen_path = SUGGESTION_PATH + f"/{self.name}_{api_name}_call{idx}_{now}.md"
+        suggestion_gen_path = (
+            SUGGESTION_PATH + f"/{self.name}_{api_name}_call{idx}_{now}.md"
+        )
         with open(suggestion_gen_path, "a") as f:
             f.write(file_pre_info)
             f.write(suggestion)
         print(f"[INS_INFO] Review suggestions saved to {suggestion_gen_path}")
 
-        
 
 if __name__ == "__main__":
     # 测试代码

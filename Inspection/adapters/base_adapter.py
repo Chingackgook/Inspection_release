@@ -4,7 +4,7 @@ from typing import Any
 class ExecutionResult:
     # Template class for execution results, used to encapsulate the outcome after invoking an interface.
     def __init__(self):
-        self.fuc_name = ''  # Name of the executed function/method
+        self.func_name = ''  # Name of the executed function/method
         self.is_success = False  # Whether execution was successful
         self.fail_reason = ''  # Reason for execution failure
         self.is_file = False  # Whether the result is a file
@@ -14,7 +14,7 @@ class ExecutionResult:
 
     def set_result(
         self,
-        fuc_name: str,
+        func_name: str,
         is_success: bool,
         fail_reason: str,
         is_file: bool,
@@ -22,7 +22,7 @@ class ExecutionResult:
         except_data: Any,
         interface_return: Any,
     ):
-        self.fuc_name = fuc_name
+        self.func_name = func_name
         self.is_success = is_success
         self.fail_reason = fail_reason
         self.is_file = is_file
@@ -36,6 +36,7 @@ class BaseAdapter(ABC):
     def __init__(self):
         # Result returned by the model after execution
         self.result: ExecutionResult = ExecutionResult()
+        self.default_obj = None
 
     @abstractmethod
     def create_interface_objects(self, interface_class_name: str = "", **kwargs):
@@ -62,12 +63,12 @@ class BaseAdapter(ABC):
 
             self.result.is_success = True
             self.result.fail_reason = ''
-            self.result.fuc_name = 'create_interface_objects'
+            self.result.func_name = 'create_interface_objects'
             self.result.is_file = False
             self.result.file_path = ''
 
         except Exception as e:
-            self.result.fuc_name = 'create_interface_objects'
+            self.result.func_name = 'create_interface_objects'
             self.result.is_success = False
             import traceback
             self.result.fail_reason = str(e) + '\n' + traceback.format_exc()
@@ -93,36 +94,36 @@ class BaseAdapter(ABC):
                 self.result.interface_return = xxx(**kwargs)
                 self.result.is_success = True
                 self.result.fail_reason = ''
-                self.result.fuc_name = dispatch_key
+                self.result.func_name = dispatch_key
             elif dispatch_key == 'class1Name_class_methodName':
                 # Call class method from class1(if it exists)
                 self.result.interface_return = Class1Name.class_methodName(**kwargs)
                 self.result.is_success = True
                 self.result.fail_reason = ''
-                self.result.fuc_name = dispatch_key
+                self.result.func_name = dispatch_key
             elif dispatch_key == 'class1Name_static_methodName':
                 # Call static method from class1(if it exists)
                 self.result.interface_return = Class1Name.static_methodName(**kwargs)
                 self.result.is_success = True
                 self.result.fail_reason = ''
-                self.result.fuc_name = dispatch_key
+                self.result.func_name = dispatch_key
             elif dispatch_key == 'class1Name_methodName':
                 # Call method from class1
                 self.result.interface_return = self.class1_obj.methodName(**kwargs)
                 self.result.is_success = True
                 self.result.fail_reason = ''
-                self.result.fuc_name = dispatch_key
+                self.result.func_name = dispatch_key
             elif dispatch_key == 'class2Name_methodName':
                 # Call method from class2
                 self.result.interface_return = self.class2_obj.methodName(**kwargs)
                 self.result.is_success = True
                 self.result.fail_reason = ''
-                self.result.fuc_name = dispatch_key
+                self.result.func_name = dispatch_key
             else:
                 raise ValueError(f"Unknown interface method: {dispatch_key}")
 
         except Exception as e:
-            self.result.fuc_name = dispatch_key
+            self.result.func_name = dispatch_key
             self.result.is_success = False
             import traceback
             self.result.fail_reason = str(e) + '\n' + traceback.format_exc()

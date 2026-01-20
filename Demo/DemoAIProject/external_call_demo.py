@@ -101,4 +101,10 @@ class ExternalCallDemo:
         )
         if sentiment_result["success"]:
             print(sentiment_result["reply"])
-    
+
+
+if __name__ == "__main__":
+    demo = ExternalCallDemo()
+    demo.simple_chat_example()
+    demo.batch_processing_example()
+    demo.advanced_usage_example()
