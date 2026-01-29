@@ -1,6 +1,6 @@
-# LLM-CRNIMS: An Executable Context Reconstruction and Simulation Framework for Intelligent Software
+# IntelDecop: A Call-level Decoupling Framework For Intelligent Software
 
-This repository contains the implementation of **LLM-CRNIMS**, a framework for executable context reconstruction and simulation in Intelligent software.
+This repository contains the implementation of **IntelDecop**
 
 ## Preparation
 
@@ -44,3 +44,4 @@ python -m Demo.demo_generate_SPE
 python -m Demo.demo_generate_NIMASM
 python -m Demo.demo_execute_and_suggest
 ```
+
